@@ -62,19 +62,98 @@ interface Enrollment {
   createdAt: string;
 }
 
+interface OrganizerStat {
+  id: number;
+  title: string;
+  dateStart: string;
+  location: string;
+  capacity: number;
+  bookedCount: number;
+  waitlistCount: number;
+}
+
+interface OrganizerEnrollment extends Enrollment {
+  trainingTitle: string;
+  dateStart: string;
+}
+
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("ErrorBoundary caught an error", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-[#F5F5F0] p-6">
+          <div className="bg-white p-12 rounded-[48px] shadow-sm border border-black/5 max-w-lg text-center">
+            <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6 text-red-600">
+              <AlertCircle size={40} />
+            </div>
+            <h1 className="text-3xl font-serif font-bold mb-4">Coś poszło nie tak</h1>
+            <p className="text-black/60 mb-8">
+              Wystąpił nieoczekiwany błąd aplikacji. Spróbuj odświeżyć stronę.
+            </p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="bg-purple-600 text-white px-8 py-3 rounded-full font-bold hover:bg-purple-700 transition-colors"
+            >
+              Odśwież stronę
+            </button>
+            {process.env.NODE_ENV !== 'production' && (
+              <pre className="mt-8 p-4 bg-black/5 rounded-xl text-left text-xs overflow-auto max-h-40">
+                {this.state.error?.message}
+              </pre>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 export default function App() {
+  return (
+    <ErrorBoundary>
+      <EduEnrollApp />
+    </ErrorBoundary>
+  );
+}
+
+function EduEnrollApp() {
   const [view, setView] = useState<'catalog' | 'details' | 'my-enrollments' | 'organizer'>('catalog');
   const [trainings, setTrainings] = useState<Training[]>([]);
   const [selectedTraining, setSelectedTraining] = useState<Training | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [myEnrollments, setMyEnrollments] = useState<Enrollment[]>([]);
-  const [organizerStats, setOrganizerStats] = useState<any[]>([]);
-  const [organizerEnrollments, setOrganizerEnrollments] = useState<any[]>([]);
+  const [organizerStats, setOrganizerStats] = useState<OrganizerStat[]>([]);
+  const [organizerEnrollments, setOrganizerEnrollments] = useState<OrganizerEnrollment[]>([]);
   const [loading, setLoading] = useState(true);
   const [enrolling, setEnrolling] = useState(false);
   const [formData, setFormData] = useState({ name: '', email: '', phone: '' });
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTrainings();
@@ -84,10 +163,40 @@ export default function App() {
     }
   }, [view]);
 
-  const fetchTrainings = async () => {
+  const showErrorMessage = (msg: string) => {
+    setErrorMessage(msg);
+    setTimeout(() => setErrorMessage(null), 5000);
+  };
+
+  const fetchWithHandling = async (url: string, options?: RequestInit) => {
     try {
-      const res = await fetch('/api/trainings');
-      const data = await res.json();
+      const res = await fetch(url, options);
+      
+      let data;
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        if (!res.ok) throw new Error(`Serwer zwrócił błąd: ${res.status}`);
+        return text;
+      }
+
+      if (!res.ok) {
+        throw new Error(data?.error || `Błąd serwera: ${res.status}`);
+      }
+      return data;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Wystąpił błąd połączenia z serwerem.';
+      showErrorMessage(msg);
+      throw err;
+    }
+  };
+
+  const fetchTrainings = async () => {
+    setLoading(true);
+    try {
+      const data = await fetchWithHandling('/api/trainings');
       setTrainings(data);
     } catch (err) {
       console.error(err);
@@ -98,8 +207,7 @@ export default function App() {
 
   const fetchMyEnrollments = async () => {
     try {
-      const res = await fetch('/api/my-enrollments');
-      const data = await res.json();
+      const data = await fetchWithHandling('/api/my-enrollments');
       setMyEnrollments(data);
     } catch (err) {
       console.error(err);
@@ -108,12 +216,10 @@ export default function App() {
 
   const fetchOrganizerData = async () => {
     try {
-      const [statsRes, enrollRes] = await Promise.all([
-        fetch('/api/organizer/stats'),
-        fetch('/api/organizer/enrollments')
+      const [stats, enrolls] = await Promise.all([
+        fetchWithHandling('/api/organizer/stats'),
+        fetchWithHandling('/api/organizer/enrollments')
       ]);
-      const stats = await statsRes.json();
-      const enrolls = await enrollRes.json();
       setOrganizerStats(stats);
       setOrganizerEnrollments(enrolls);
     } catch (err) {
@@ -125,10 +231,10 @@ export default function App() {
     setSelectedTraining(training);
     setLoading(true);
     try {
-      const res = await fetch(`/api/trainings/${training.id}/sessions`);
-      const data = await res.json();
+      const data = await fetchWithHandling(`/api/trainings/${training.id}/sessions`);
       setSessions(data);
       setView('details');
+      setSelectedSessionId(null);
     } catch (err) {
       console.error(err);
     } finally {
@@ -142,7 +248,7 @@ export default function App() {
 
     setEnrolling(true);
     try {
-      const res = await fetch('/api/enroll', {
+      const data = await fetchWithHandling('/api/enroll', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -152,22 +258,18 @@ export default function App() {
           userPhone: formData.phone
         })
       });
-      const data = await res.json();
-      if (data.success) {
-        const msg = data.status === 'waitlist' 
-          ? 'Zostałeś dopisany do listy rezerwowej!' 
-          : 'Zostałeś pomyślnie zapisany na szkolenie!';
-        setSuccessMessage(msg);
-        fetchMyEnrollments();
-        setTimeout(() => {
-          setSuccessMessage(null);
-          setView('my-enrollments');
-          setSelectedSessionId(null);
-          setFormData({ name: '', email: '', phone: '' });
-        }, 2000);
-      } else {
-        alert(data.error || 'Wystąpił błąd podczas zapisu.');
-      }
+      
+      const msg = data.status === 'waitlist' 
+        ? 'Zostałeś dopisany do listy rezerwowej!' 
+        : 'Zostałeś pomyślnie zapisany na szkolenie!';
+      setSuccessMessage(msg);
+      fetchMyEnrollments();
+      setTimeout(() => {
+        setSuccessMessage(null);
+        setView('my-enrollments');
+        setSelectedSessionId(null);
+        setFormData({ name: '', email: '', phone: '' });
+      }, 2000);
     } catch (err) {
       console.error(err);
     } finally {
@@ -179,13 +281,10 @@ export default function App() {
     if (!confirm('Czy na pewno chcesz zrezygnować z tego szkolenia?')) return;
     
     try {
-      const res = await fetch(`/api/enrollments/${id}/cancel`, { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        setSuccessMessage('Twoja rezerwacja została anulowana.');
-        fetchMyEnrollments();
-        setTimeout(() => setSuccessMessage(null), 2000);
-      }
+      await fetchWithHandling(`/api/enrollments/${id}/cancel`, { method: 'POST' });
+      setSuccessMessage('Twoja rezerwacja została anulowana.');
+      fetchMyEnrollments();
+      setTimeout(() => setSuccessMessage(null), 2000);
     } catch (err) {
       console.error(err);
     }
@@ -588,8 +687,8 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
-                {organizerStats.map((stat, i) => (
-                  <div key={i} className="bg-white p-8 rounded-[32px] border border-black/5 shadow-sm">
+                {organizerStats.map((stat) => (
+                  <div key={stat.id} className="bg-white p-8 rounded-[32px] border border-black/5 shadow-sm">
                     <h3 className="text-xl font-serif font-bold mb-4">{stat.title}</h3>
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-sm text-black/40">Data:</span>
@@ -667,6 +766,21 @@ export default function App() {
           >
             <CheckCircle2 size={24} />
             <span className="font-bold">{successMessage}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Error Toast */}
+      <AnimatePresence>
+        {errorMessage && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] bg-red-600 text-white px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-3"
+          >
+            <AlertCircle size={24} />
+            <span className="font-bold">{errorMessage}</span>
           </motion.div>
         )}
       </AnimatePresence>

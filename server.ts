@@ -41,6 +41,8 @@ db.exec(`
     userPhone TEXT,
     FOREIGN KEY(sessionId) REFERENCES sessions(id)
   );
+
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_user_session ON enrollments (userId, sessionId);
 `);
 
 // Seed initial data if empty
@@ -88,113 +90,163 @@ async function startServer() {
   app.use(express.json());
 
   // API Routes
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
   app.get("/api/trainings", (req, res) => {
-    const trainings = db.prepare("SELECT * FROM trainings").all();
-    res.json(trainings);
+    try {
+      const trainings = db.prepare("SELECT * FROM trainings").all();
+      res.json(trainings);
+    } catch (error) {
+      console.error("Error fetching trainings:", error);
+      res.status(500).json({ error: "Błąd podczas pobierania szkoleń" });
+    }
   });
 
   app.get("/api/trainings/:id/sessions", (req, res) => {
-    const sessions = db.prepare("SELECT * FROM sessions WHERE trainingId = ?").all(req.params.id);
-    res.json(sessions);
+    try {
+      const sessions = db.prepare("SELECT * FROM sessions WHERE trainingId = ?").all(req.params.id);
+      res.json(sessions);
+    } catch (error) {
+      console.error("Error fetching sessions:", error);
+      res.status(500).json({ error: "Błąd podczas pobierania sesji" });
+    }
   });
 
   app.get("/api/my-enrollments", (req, res) => {
-    const enrollments = db.prepare(`
-      SELECT e.*, t.title as trainingTitle, s.dateStart, s.location
-      FROM enrollments e
-      JOIN sessions s ON e.sessionId = s.id
-      JOIN trainings t ON s.trainingId = t.id
-      WHERE e.userId = ?
-      ORDER BY s.dateStart ASC
-    `).all("user-1");
-    res.json(enrollments);
+    try {
+      const enrollments = db.prepare(`
+        SELECT e.*, t.title as trainingTitle, s.dateStart, s.location
+        FROM enrollments e
+        JOIN sessions s ON e.sessionId = s.id
+        JOIN trainings t ON s.trainingId = t.id
+        WHERE e.userId = ?
+        ORDER BY s.dateStart ASC
+      `).all("user-1");
+      res.json(enrollments);
+    } catch (error) {
+      console.error("Error fetching my enrollments:", error);
+      res.status(500).json({ error: "Błąd podczas pobierania Twoich zapisów" });
+    }
   });
 
   app.post("/api/enroll", (req, res) => {
-    const { sessionId, userName, userEmail, userPhone } = req.body;
-    
-    const session = db.prepare("SELECT * FROM sessions WHERE id = ?").get(sessionId) as any;
-    
-    if (!session) {
-      return res.status(404).json({ error: "Sesja nie istnieje" });
-    }
-
-    const status = session.bookedCount >= session.capacity ? 'waitlist' : 'confirmed';
-
-    const transaction = db.transaction(() => {
-      db.prepare(`
-        INSERT INTO enrollments (userId, sessionId, userName, userEmail, userPhone, status)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run("user-1", sessionId, userName, userEmail, userPhone, status);
-
-      if (status === 'confirmed') {
-        db.prepare("UPDATE sessions SET bookedCount = bookedCount + 1 WHERE id = ?")
-          .run(sessionId);
+    try {
+      const { sessionId, userName, userEmail, userPhone } = req.body;
+      
+      if (!sessionId || !userName || !userEmail || !userPhone) {
+        return res.status(400).json({ error: "Wszystkie pola są wymagane" });
       }
-    });
 
-    transaction();
-    res.json({ success: true, status });
+      const transaction = db.transaction(() => {
+        // Check for duplicate enrollment
+        const existing = db.prepare("SELECT id FROM enrollments WHERE userId = ? AND sessionId = ?").get("user-1", sessionId);
+        if (existing) {
+          throw new Error("Jesteś już zapisany na tę sesję");
+        }
+
+        const session = db.prepare("SELECT * FROM sessions WHERE id = ?").get(sessionId) as any;
+        if (!session) {
+          throw new Error("Sesja nie istnieje");
+        }
+
+        const status = session.bookedCount >= session.capacity ? 'waitlist' : 'confirmed';
+
+        db.prepare(`
+          INSERT INTO enrollments (userId, sessionId, userName, userEmail, userPhone, status)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run("user-1", sessionId, userName, userEmail, userPhone, status);
+
+        if (status === 'confirmed') {
+          db.prepare("UPDATE sessions SET bookedCount = bookedCount + 1 WHERE id = ?")
+            .run(sessionId);
+        }
+        return status;
+      });
+
+      const status = transaction();
+      res.json({ success: true, status });
+    } catch (error) {
+      console.error("Error enrolling:", error);
+      res.status(400).json({ error: error instanceof Error ? error.message : "Błąd podczas zapisu na szkolenie" });
+    }
   });
 
   app.post("/api/enrollments/:id/cancel", (req, res) => {
-    const enrollmentId = req.params.id;
-    const enrollment = db.prepare("SELECT * FROM enrollments WHERE id = ?").get(enrollmentId) as any;
+    try {
+      const enrollmentId = req.params.id;
+      const enrollment = db.prepare("SELECT * FROM enrollments WHERE id = ?").get(enrollmentId) as any;
 
-    if (!enrollment) {
-      return res.status(404).json({ error: "Zapis nie istnieje" });
-    }
-
-    const transaction = db.transaction(() => {
-      db.prepare("DELETE FROM enrollments WHERE id = ?").run(enrollmentId);
-
-      if (enrollment.status === 'confirmed') {
-        db.prepare("UPDATE sessions SET bookedCount = bookedCount - 1 WHERE id = ?")
-          .run(enrollment.sessionId);
-        
-        // Move first person from waitlist to confirmed
-        const nextInLine = db.prepare(`
-          SELECT * FROM enrollments 
-          WHERE sessionId = ? AND status = 'waitlist' 
-          ORDER BY createdAt ASC LIMIT 1
-        `).get(enrollment.sessionId) as any;
-
-        if (nextInLine) {
-          db.prepare("UPDATE enrollments SET status = 'confirmed' WHERE id = ?").run(nextInLine.id);
-          db.prepare("UPDATE sessions SET bookedCount = bookedCount + 1 WHERE id = ?")
-            .run(enrollment.sessionId);
-        }
+      if (!enrollment) {
+        return res.status(404).json({ error: "Zapis nie istnieje" });
       }
-    });
 
-    transaction();
-    res.json({ success: true });
+      const transaction = db.transaction(() => {
+        db.prepare("DELETE FROM enrollments WHERE id = ?").run(enrollmentId);
+
+        if (enrollment.status === 'confirmed') {
+          db.prepare("UPDATE sessions SET bookedCount = bookedCount - 1 WHERE id = ?")
+            .run(enrollment.sessionId);
+          
+          // Move first person from waitlist to confirmed
+          const nextInLine = db.prepare(`
+            SELECT * FROM enrollments 
+            WHERE sessionId = ? AND status = 'waitlist' 
+            ORDER BY createdAt ASC LIMIT 1
+          `).get(enrollment.sessionId) as any;
+
+          if (nextInLine) {
+            db.prepare("UPDATE enrollments SET status = 'confirmed' WHERE id = ?").run(nextInLine.id);
+            db.prepare("UPDATE sessions SET bookedCount = bookedCount + 1 WHERE id = ?")
+              .run(enrollment.sessionId);
+          }
+        }
+      });
+
+      transaction();
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error cancelling enrollment:", error);
+      res.status(500).json({ error: "Błąd podczas anulowania zapisu" });
+    }
   });
 
   app.get("/api/organizer/stats", (req, res) => {
-    const stats = db.prepare(`
-      SELECT 
-        t.title, 
-        s.dateStart, 
-        s.location, 
-        s.capacity, 
-        s.bookedCount,
-        (SELECT COUNT(*) FROM enrollments WHERE sessionId = s.id AND status = 'waitlist') as waitlistCount
-      FROM sessions s
-      JOIN trainings t ON s.trainingId = t.id
-    `).all();
-    res.json(stats);
+    try {
+      const stats = db.prepare(`
+        SELECT 
+          s.id,
+          t.title, 
+          s.dateStart, 
+          s.location, 
+          s.capacity, 
+          s.bookedCount,
+          (SELECT COUNT(*) FROM enrollments WHERE sessionId = s.id AND status = 'waitlist') as waitlistCount
+        FROM sessions s
+        JOIN trainings t ON s.trainingId = t.id
+      `).all();
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching organizer stats:", error);
+      res.status(500).json({ error: "Błąd podczas pobierania statystyk" });
+    }
   });
 
   app.get("/api/organizer/enrollments", (req, res) => {
-    const enrollments = db.prepare(`
-      SELECT e.*, t.title as trainingTitle, s.dateStart
-      FROM enrollments e
-      JOIN sessions s ON e.sessionId = s.id
-      JOIN trainings t ON s.trainingId = t.id
-      ORDER BY e.createdAt DESC
-    `).all();
-    res.json(enrollments);
+    try {
+      const enrollments = db.prepare(`
+        SELECT e.*, t.title as trainingTitle, s.dateStart
+        FROM enrollments e
+        JOIN sessions s ON e.sessionId = s.id
+        JOIN trainings t ON s.trainingId = t.id
+        ORDER BY e.createdAt DESC
+      `).all();
+      res.json(enrollments);
+    } catch (error) {
+      console.error("Error fetching organizer enrollments:", error);
+      res.status(500).json({ error: "Błąd podczas pobierania listy zapisów" });
+    }
   });
 
   // Vite middleware for development
