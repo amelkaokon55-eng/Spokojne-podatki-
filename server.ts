@@ -98,6 +98,18 @@ async function startServer() {
     res.json(sessions);
   });
 
+  app.get("/api/my-enrollments", (req, res) => {
+    const enrollments = db.prepare(`
+      SELECT e.*, t.title as trainingTitle, s.dateStart, s.location
+      FROM enrollments e
+      JOIN sessions s ON e.sessionId = s.id
+      JOIN trainings t ON s.trainingId = t.id
+      WHERE e.userId = ?
+      ORDER BY s.dateStart ASC
+    `).all("user-1");
+    res.json(enrollments);
+  });
+
   app.post("/api/enroll", (req, res) => {
     const { sessionId, userName, userEmail, userPhone } = req.body;
     
