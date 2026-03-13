@@ -38,6 +38,7 @@ db.exec(`
     createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
     userName TEXT,
     userEmail TEXT,
+    userPhone TEXT,
     FOREIGN KEY(sessionId) REFERENCES sessions(id)
   );
 `);
@@ -56,7 +57,7 @@ if (trainingCount.count === 0) {
     "Podatki", 
     "Średni", 
     "Aneta Solecka", 
-    499.00, 
+    100.00, 
     "https://picsum.photos/seed/tax/800/600"
   ).lastInsertRowid;
 
@@ -66,7 +67,7 @@ if (trainingCount.count === 0) {
     "Księgowość", 
     "Podstawowy", 
     "Aneta Solecka", 
-    299.00, 
+    100.00, 
     "https://picsum.photos/seed/accounting/800/600"
   ).lastInsertRowid;
 
@@ -98,7 +99,7 @@ async function startServer() {
   });
 
   app.post("/api/enroll", (req, res) => {
-    const { sessionId, userName, userEmail } = req.body;
+    const { sessionId, userName, userEmail, userPhone } = req.body;
     
     const session = db.prepare("SELECT * FROM sessions WHERE id = ?").get(sessionId) as any;
     
@@ -110,9 +111,9 @@ async function startServer() {
 
     const transaction = db.transaction(() => {
       db.prepare(`
-        INSERT INTO enrollments (userId, sessionId, userName, userEmail, status)
-        VALUES (?, ?, ?, ?, ?)
-      `).run("user-1", sessionId, userName, userEmail, status);
+        INSERT INTO enrollments (userId, sessionId, userName, userEmail, userPhone, status)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run("user-1", sessionId, userName, userEmail, userPhone, status);
 
       if (status === 'confirmed') {
         db.prepare("UPDATE sessions SET bookedCount = bookedCount + 1 WHERE id = ?")

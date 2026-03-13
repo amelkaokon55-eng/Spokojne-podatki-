@@ -56,6 +56,9 @@ interface Enrollment {
   dateStart: string;
   location: string;
   status: string;
+  userName: string;
+  userEmail: string;
+  userPhone: string;
   createdAt: string;
 }
 
@@ -69,7 +72,7 @@ export default function App() {
   const [organizerEnrollments, setOrganizerEnrollments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [enrolling, setEnrolling] = useState(false);
-  const [formData, setFormData] = useState({ name: '', email: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', phone: '' });
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -145,7 +148,8 @@ export default function App() {
         body: JSON.stringify({
           sessionId: selectedSessionId,
           userName: formData.name,
-          userEmail: formData.email
+          userEmail: formData.email,
+          userPhone: formData.phone
         })
       });
       const data = await res.json();
@@ -159,7 +163,7 @@ export default function App() {
           setSuccessMessage(null);
           setView('my-enrollments');
           setSelectedSessionId(null);
-          setFormData({ name: '', email: '' });
+          setFormData({ name: '', email: '', phone: '' });
         }, 2000);
       } else {
         alert(data.error || 'Wystąpił błąd podczas zapisu.');
@@ -460,6 +464,17 @@ export default function App() {
                         />
                       </div>
                       <div className="md:col-span-2">
+                        <label className="block text-[10px] uppercase tracking-widest text-white/40 font-bold mb-2">Numer Telefonu</label>
+                        <input 
+                          required
+                          type="tel"
+                          value={formData.phone}
+                          onChange={e => setFormData({...formData, phone: e.target.value})}
+                          className="w-full bg-white/10 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-white/40 transition-colors"
+                          placeholder="+48 000 000 000"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
                         <button 
                           disabled={enrolling}
                           className="w-full bg-white text-black font-bold py-4 rounded-xl hover:bg-white/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
@@ -614,6 +629,7 @@ export default function App() {
                         <td className="px-8 py-6">
                           <div className="font-bold">{enroll.userName}</div>
                           <div className="text-xs text-black/40">{enroll.userEmail}</div>
+                          <div className="text-xs text-black/40">{enroll.userPhone}</div>
                         </td>
                         <td className="px-8 py-6">
                           <div className="font-medium">{enroll.trainingTitle}</div>
