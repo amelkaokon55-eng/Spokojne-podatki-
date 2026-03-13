@@ -222,7 +222,7 @@ export default function App() {
             className="flex items-center gap-2 cursor-pointer" 
             onClick={() => setView('catalog')}
           >
-            <div className="w-10 h-10 bg-[#5A5A40] rounded-full flex items-center justify-center text-white">
+            <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center text-white">
               <GraduationCap size={24} />
             </div>
             <span className="text-xl font-serif font-bold tracking-tight">Spokojne Podatki</span>
@@ -233,7 +233,7 @@ export default function App() {
               onClick={() => setView('catalog')}
               className={cn(
                 "text-sm font-medium transition-colors",
-                view === 'catalog' ? "text-[#5A5A40]" : "text-black/40 hover:text-black"
+                view === 'catalog' ? "text-purple-600" : "text-black/40 hover:text-black"
               )}
             >
               Katalog
@@ -242,7 +242,7 @@ export default function App() {
               onClick={() => setView('my-enrollments')}
               className={cn(
                 "text-sm font-medium transition-colors",
-                view === 'my-enrollments' ? "text-[#5A5A40]" : "text-black/40 hover:text-black"
+                view === 'my-enrollments' ? "text-purple-600" : "text-black/40 hover:text-black"
               )}
             >
               Moje zapisy
@@ -251,7 +251,7 @@ export default function App() {
               onClick={() => setView('organizer')}
               className={cn(
                 "text-sm font-medium transition-colors",
-                view === 'organizer' ? "text-[#5A5A40]" : "text-black/40 hover:text-black"
+                view === 'organizer' ? "text-purple-600" : "text-black/40 hover:text-black"
               )}
             >
               Panel Organizatora
@@ -317,7 +317,7 @@ export default function App() {
                           </div>
                           <button 
                             onClick={() => handleViewDetails(training)}
-                            className="w-12 h-12 rounded-full bg-[#5A5A40] text-white flex items-center justify-center hover:bg-[#4A4A30] transition-colors"
+                            className="w-12 h-12 rounded-full bg-purple-600 text-white flex items-center justify-center hover:bg-purple-700 transition-colors"
                           >
                             <ChevronRight size={24} />
                           </button>
@@ -349,7 +349,7 @@ export default function App() {
               <div className="bg-white rounded-[48px] p-12 shadow-sm border border-black/5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-12">
                   <div>
-                    <span className="inline-block px-4 py-1 bg-[#5A5A40]/10 text-[#5A5A40] rounded-full text-xs font-bold uppercase tracking-wider mb-4">
+                    <span className="inline-block px-4 py-1 bg-purple-600/10 text-purple-600 rounded-full text-xs font-bold uppercase tracking-wider mb-4">
                       {selectedTraining.level}
                     </span>
                     <h2 className="text-5xl font-serif font-bold mb-6 leading-tight">{selectedTraining.title}</h2>
@@ -358,7 +358,7 @@ export default function App() {
                     </p>
                     
                     <div className="flex items-center gap-4 p-4 bg-[#F5F5F0] rounded-2xl">
-                      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-[#5A5A40]">
+                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-purple-600">
                         <Users size={24} />
                       </div>
                       <div>
@@ -385,7 +385,7 @@ export default function App() {
                         className={cn(
                           "p-6 rounded-3xl border-2 transition-all cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-6",
                           selectedSessionId === session.id 
-                            ? "border-[#5A5A40] bg-[#5A5A40]/5" 
+                            ? "border-purple-600 bg-purple-600/5" 
                             : "border-black/5 hover:border-black/10 bg-white"
                         )}
                         onClick={() => setSelectedSessionId(session.id)}
@@ -405,7 +405,7 @@ export default function App() {
                               <span>{format(new Date(session.dateStart), 'HH:mm')} - {format(new Date(session.dateEnd), 'HH:mm')}</span>
                             </div>
                             <div className="flex items-center gap-2 text-sm font-bold">
-                              <MapPin size={14} className="text-[#5A5A40]" />
+                              <MapPin size={14} className="text-purple-600" />
                               <span>{session.location}</span>
                             </div>
                           </div>
@@ -423,7 +423,7 @@ export default function App() {
                           </div>
                           <div className={cn(
                             "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors",
-                            selectedSessionId === session.id ? "bg-[#5A5A40] border-[#5A5A40]" : "border-black/10"
+                            selectedSessionId === session.id ? "bg-purple-600 border-purple-600" : "border-black/10"
                           )}>
                             {selectedSessionId === session.id && <CheckCircle2 size={14} className="text-white" />}
                           </div>
@@ -511,7 +511,7 @@ export default function App() {
                   <p className="text-black/40 mb-8">Nie zapisałeś się jeszcze na żadne szkolenie.</p>
                   <button 
                     onClick={() => setView('catalog')}
-                    className="bg-[#5A5A40] text-white px-8 py-3 rounded-full font-bold hover:bg-[#4A4A30] transition-colors"
+                    className="bg-purple-600 text-white px-8 py-3 rounded-full font-bold hover:bg-purple-700 transition-colors"
                   >
                     Przeglądaj katalog
                   </button>
@@ -524,7 +524,7 @@ export default function App() {
                       className="bg-white p-8 rounded-[32px] border border-black/5 flex flex-col md:flex-row md:items-center justify-between gap-8"
                     >
                       <div className="flex items-center gap-6">
-                        <div className="w-16 h-16 bg-[#5A5A40]/10 rounded-2xl flex items-center justify-center text-[#5A5A40]">
+                        <div className="w-16 h-16 bg-purple-600/10 rounded-2xl flex items-center justify-center text-purple-600">
                           <BookOpen size={32} />
                         </div>
                         <div>
@@ -605,7 +605,7 @@ export default function App() {
                     </div>
                     <div className="mt-6 h-2 bg-black/5 rounded-full overflow-hidden">
                       <div 
-                        className="h-full bg-[#5A5A40] transition-all duration-1000" 
+                        className="h-full bg-purple-600 transition-all duration-1000" 
                         style={{ width: `${(stat.bookedCount / stat.capacity) * 100}%` }}
                       />
                     </div>

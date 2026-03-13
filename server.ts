@@ -58,7 +58,7 @@ if (trainingCount.count === 0) {
     "Średni", 
     "Aneta Solecka", 
     100.00, 
-    "https://picsum.photos/seed/tax/800/600"
+    "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&q=80&w=800"
   ).lastInsertRowid;
 
   const t2 = insertTraining.run(
@@ -68,7 +68,7 @@ if (trainingCount.count === 0) {
     "Podstawowy", 
     "Aneta Solecka", 
     100.00, 
-    "https://picsum.photos/seed/accounting/800/600"
+    "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&q=80&w=800"
   ).lastInsertRowid;
 
   const insertSession = db.prepare(`
